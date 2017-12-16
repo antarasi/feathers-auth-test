@@ -3,6 +3,8 @@ const rp = require('request-promise');
 const url = require('url');
 const app = require('../src/app');
 const feathersClient = require('@feathersjs/client');
+const localStorage = require('localstorage-memory');
+const fetch = require('node-fetch');
 const socketio = require('socket.io-client');
 const chai = require('chai');
 const { expect } = chai;
@@ -67,111 +69,133 @@ describe('Feathers application tests', () => {
   });
 
   describe.only('Authentication tests', () => {
-    describe('REST tests', function () {
+    const transports = [
+      {
+        name: 'Socket.io',
+        configure: function () {
+          this.socket = socketio(getUrl());
 
-    })
+          this.client = feathersClient()
+            .configure(feathersClient.socketio(this.socket))
+        },
+        loginRoutine: function (done) {
+          this.socket.emit('authenticate', {
+            strategy: 'local',
+            ...credentials
+          }, (message, data) => {
+            expect(message).to.be.null;
+            expect(data).to.have.property('accessToken').to.be.a('string')
 
-    describe('Socket.io tests', function () {
-      before(async () => {
-        this.socket = socketio(getUrl());
+            this.accessToken = data.accessToken;
 
-        this.client = feathersClient()
-          .configure(feathersClient.socketio(this.socket))
-
-        this.userService = this.client.service('/users');
-
-        const registered = await this.userService.create(credentials)
-
-        expect(registered).to.have.property('email', credentials.email);
-        expect(registered).to.have.property('_id')
-
-        this.userId = registered._id;
-        this.expectedUserObject = {
-          email: credentials.email,
-          _id: this.userId,
+            done();
+          });
         }
-      });
+      },
+      {
+        name: 'REST',
+        configure: function () {
+          this.client = feathersClient()
+            .configure(feathersClient.rest(getUrl()).fetch(fetch))
+            .configure(feathersClient.authentication({ storage: localStorage }));
+        },
+        loginRoutine: function (done) {
+          this.client.authenticate({
+            strategy: 'local',
+            ...credentials
+          }).then((data) => {
+            expect(data).to.have.property('accessToken').to.be.a('string')
 
-      after(async () => {
-        if (this.userId) {
-          await this.userService.remove(this.userId)
+            this.accessToken = data.accessToken;
+
+            done();
+          });
         }
-      });
+      }
+    ]
 
-      it('should reject unauthorized access', () => {
-        return Promise.all([
-          expect(this.userService.find({})).to.be.rejectedWith('No auth token'),
-          expect(this.userService.get(this.userId)).to.be.rejectedWith('You are not authenticated'),
-        ])
-      })
+    transports.forEach(transport => {
 
-      it('should login correctly', (done) => {
-        const suite = this;
+      describe(`${transport.name} tests`, function () {
+        before(async () => {
+          transport.configure.call(this);
 
-        this.socket.emit('authenticate', {
-          strategy: 'local',
-          ...credentials
-        }, function (message, data) {
-          console.log('m', message)
-          console.log('d', data)
+          this.userService = this.client.service('/users');
 
-          expect(message).to.be.null;
-          expect(data).to.have.property('accessToken').to.be.a('string')
+          const registered = await this.userService.create(credentials)
 
-          suite.accessToken = data.accessToken;
+          expect(registered).to.have.property('email', credentials.email);
+          expect(registered).to.have.property('_id')
 
-          done();
+          this.userId = registered._id;
+          this.expectedUserObject = {
+            email: credentials.email,
+            _id: this.userId,
+          }
         });
-      })
 
-      it('should find all users (authenticate:jwt)', async () => {
-        const users = await this.userService.find({});
+        after(async () => {
+          if (this.userId) {
+            await this.userService.remove(this.userId)
+          }
+        });
 
-        expect(users).to.be.an('object').that.has.all.keys(['total', 'limit', 'skip', 'data'])
-        expect(users.data).to.be.an('array')
+        it('should reject unauthorized access', () => {
+          return Promise.all([
+            expect(this.userService.find({})).to.be.rejectedWith('No auth token'),
+            expect(this.userService.get(this.userId)).to.be.rejectedWith('You are not authenticated'),
+          ])
+        })
+
+        it('should login correctly', transport.loginRoutine.bind(this))
+
+        it('should find all users (authenticate:jwt)', async () => {
+          const users = await this.userService.find({});
+
+          expect(users).to.be.an('object').that.has.all.keys(['total', 'limit', 'skip', 'data'])
+          expect(users.data).to.be.an('array')
           .and.have.lengthOf(1)
 
-        expect(users.data[0]).to.eql(this.expectedUserObject)
-      })
+          expect(users.data[0]).to.eql(this.expectedUserObject)
+        })
 
-      it('should get one user (restrictToAuthenticated)', async () => {
-        const user = await this.userService.get(this.userId);
+        it('should get one user (restrictToAuthenticated)', async () => {
+          const user = await this.userService.get(this.userId);
 
-        expect(user).to.deep.equal(this.expectedUserObject)
-      })
+          expect(user).to.deep.equal(this.expectedUserObject)
+        })
 
-      it('authtoken should be expired now', (done) => {
-        const decoded = jwtDecode(this.accessToken)
+        it('authtoken should be expired now', (done) => {
+          const decoded = jwtDecode(this.accessToken)
 
-        console.log(decoded);
-
-        expect(decoded).be.an('object')
+          expect(decoded).be.an('object')
           .and.have.all.keys(["aud", "exp", "iat", "iss", "jti", "sub", "userId"])
 
-        expect(decoded.userId).to.equal(this.userId)
-        const exp = decoded.exp * 1000;
-        const now = new Date().getTime();
-
-        let remaining = exp - now;
-        if (remaining < 0) {
-          // already expired
-          remaining = 0;
-        }
-
-        console.log('waiting for expiration', remaining / 1000, 's')
-        setTimeout(() => {
+          expect(decoded.userId).to.equal(this.userId)
+          const exp = decoded.exp * 1000;
           const now = new Date().getTime();
-          expect(now).to.be.above(exp)
-          done()
-        }, remaining + 200)
-      })
 
-      it('should reject to find users (authenticate:jwt)', () => {
-        return expect(this.userService.find({})).to.be.rejectedWith('You are not authenticated')
-      })
+          let remaining = exp - now;
+          if (remaining < 0) {
+            // already expired
+            remaining = 0;
+          }
 
-      it('should reject to get user (restrictToAuthenticated)', () => {
-        return expect(this.userService.get(this.userId)).to.be.rejectedWith('jwt expired')
+          console.log('waiting for expiration', remaining / 1000, 's')
+          setTimeout(() => {
+            const now = new Date().getTime();
+            expect(now).to.be.above(exp)
+            done()
+          }, remaining + 200)
+        })
+
+        it('should reject to find users (authenticate:jwt)', () => {
+          return expect(this.userService.find({})).to.be.rejectedWith('jwt expired')
+        })
+
+        it('should reject to get user (restrictToAuthenticated)', () => {
+          return expect(this.userService.get(this.userId)).to.be.rejectedWith('You are not authenticated')
+        })
       })
     })
   })
