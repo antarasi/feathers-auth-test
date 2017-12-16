@@ -4,54 +4,72 @@
 
 ## About
 
-This project uses [Feathers](http://feathersjs.com). An open source web framework for building modern real-time applications.
+This project is prepared to test feathers authentication using REST and socket.io.
 
-## Getting Started
+## What's inside
 
-Getting up and running is as easy as 1, 2, 3.
+Server is configured to have 2 protected endpoints in users service:
 
-1. Make sure you have [NodeJS](https://nodejs.org/) and [npm](https://www.npmjs.com/) installed.
-2. Install your dependencies
+1. FIND: `users:find` protected by `@feathersjs/authentication.hooks.authenticate('jwt')`
+2. GET: `users:get` protected by `feathers-authentication-hooks.restrictToAuthenticated()` 
 
-    ```
-    cd path/to/feathers-auth-test; npm install
-    ```
+and test spec for testing feathers REST and socket.io authorization
 
-3. Start your app
-
-    ```
-    npm start
-    ```
+`test/auth.test.js`:
+1. should reject unauthorized access
+    - When not logged in - both endpoints should reject requests
+2. should login correctly
+    - Perform login routine that result in generating `accessToken`
+3. should find all users (authenticate:jwt)
+    - Requested FIND endpoint should be fulfilled after login
+4. should get one user (restrictToAuthenticated)
+    - Requested GET endpoint should be fulfilled after login
+5. authtoken should be expired now
+    - Wait for `authToken` to expire 
+6. should reject to find users (authenticate:jwt)
+    - Requested FIND endpoint should be rejected after `authToken` expiration
+7. should reject to get user (restrictToAuthenticated)  
+    - Requested GET endpoint should be rejected after `authToken` expiration
 
 ## Testing
 
-Simply run `npm test` and all your tests in the `test/` directory will be run.
+Run npm scipt: `npm run mocha:auth`
 
-## Scaffolding
+## Test results
 
-Feathers has a powerful command line interface. Here are a few things it can do:
+### All test spec pass except the following:
 
 ```
-$ npm install -g @feathersjs/cli          # Install Feathers CLI
+1) Feathers authorization
+       Transports
+         Socket.io tests
+           should reject to find users (authenticate:jwt):
 
-$ feathers generate service               # Generate a new Service
-$ feathers generate hook                  # Generate a new Hook
-$ feathers generate model                 # Generate a new Model
-$ feathers help                           # Show all commands
+      AssertionError: expected promise to be rejected with an error including 'jwt expired' but got 'No auth token'
+      + expected - actual
+
+      -No auth token
+      +jwt expired
+```
+  
+```
+  2) Feathers authorization
+       Transports
+         Socket.io tests
+           should reject to get user (restrictToAuthenticated):
+     AssertionError: expected promise to be rejected with an error including 'You are not authenticated' but it was fulfilled with { Object (email, _id) }
 ```
 
-## Help
 
-For more information on all the things you can do with Feathers visit [docs.feathersjs.com](http://docs.feathersjs.com).
-
-## Changelog
-
-__0.1.0__
-
-- Initial release
-
-## License
-
-Copyright (c) 2016
-
-Licensed under the [MIT license](LICENSE).
+```
+  3) Feathers authorization
+       Transports
+         REST tests
+           should get one user (restrictToAuthenticated):
+     NotAuthenticated: You are not authenticated.
+      at new NotAuthenticated (node_modules\@feathersjs\client\dist\feathers.js:508:17)
+      at convert (node_modules\@feathersjs\client\dist\feathers.js:653:32)
+      at toError (node_modules\@feathersjs\client\dist\feathers.js:94:9)
+      at <anonymous>
+      at process._tickCallback (internal/process/next_tick.js:188:7)
+```
