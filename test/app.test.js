@@ -165,6 +165,14 @@ describe('Feathers application tests', () => {
           done()
         }, remaining + 200)
       })
+
+      it('should reject to find users (authenticate:jwt)', () => {
+        return expect(this.userService.find({})).to.be.rejectedWith('You are not authenticated')
+      })
+
+      it('should reject to get user (restrictToAuthenticated)', () => {
+        return expect(this.userService.get(this.userId)).to.be.rejectedWith('jwt expired')
+      })
     })
   })
 });
