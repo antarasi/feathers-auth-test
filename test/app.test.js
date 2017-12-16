@@ -7,6 +7,7 @@ const socketio = require('socket.io-client');
 const chai = require('chai');
 const { expect } = chai;
 const chaiAsPromised = require("chai-as-promised");
+const jwtDecode = require('jwt-decode');
 chai.use(chaiAsPromised);
 
 const port = app.get('port') || 3030;
@@ -105,7 +106,7 @@ describe('Feathers application tests', () => {
       })
 
       it('should login correctly', (done) => {
-        // const suite = this;
+        const suite = this;
 
         this.socket.emit('authenticate', {
           strategy: 'local',
@@ -117,7 +118,7 @@ describe('Feathers application tests', () => {
           expect(message).to.be.null;
           expect(data).to.have.property('accessToken').to.be.a('string')
 
-          // suite.accessToken = data.accessToken;
+          suite.accessToken = data.accessToken;
 
           done();
         });
@@ -137,6 +138,32 @@ describe('Feathers application tests', () => {
         const user = await this.userService.get(this.userId);
 
         expect(user).to.deep.equal(this.expectedUserObject)
+      })
+
+      it('authtoken should be expired now', (done) => {
+        const decoded = jwtDecode(this.accessToken)
+
+        console.log(decoded);
+
+        expect(decoded).be.an('object')
+          .and.have.all.keys(["aud", "exp", "iat", "iss", "jti", "sub", "userId"])
+
+        expect(decoded.userId).to.equal(this.userId)
+        const exp = decoded.exp * 1000;
+        const now = new Date().getTime();
+
+        let remaining = exp - now;
+        if (remaining < 0) {
+          // already expired
+          remaining = 0;
+        }
+
+        console.log('waiting for expiration', remaining / 1000, 's')
+        setTimeout(() => {
+          const now = new Date().getTime();
+          expect(now).to.be.above(exp)
+          done()
+        }, remaining + 200)
       })
     })
   })

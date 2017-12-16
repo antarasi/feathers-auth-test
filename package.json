@@ -25,7 +25,7 @@
     "test": "npm run eslint && npm run mocha",
     "eslint": "eslint src/. test/. --config .eslintrc.json",
     "start": "node src/",
-    "mocha": "mocha test/ --recursive --exit"
+    "mocha": "mocha test/ --recursive --exit --timeout=10000"
   },
   "dependencies": {
     "@feathersjs/authentication": "^2.1.0",
@@ -44,6 +44,7 @@
     "feathers-authentication-hooks": "^0.1.5",
     "feathers-nedb": "^3.0.0",
     "helmet": "^3.9.0",
+    "jwt-decode": "^2.2.0",
     "nedb": "^1.8.0",
     "serve-favicon": "^2.4.5",
     "socket.io-client": "^2.0.4",
