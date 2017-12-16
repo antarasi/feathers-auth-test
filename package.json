@@ -25,7 +25,8 @@
     "test": "npm run eslint && npm run mocha",
     "eslint": "eslint src/. test/. --config .eslintrc.json",
     "start": "node src/",
-    "mocha": "mocha test/ --recursive --exit --timeout=10000"
+    "mocha": "mocha test/ --recursive --exit --timeout=10000",
+    "mocha:auth": "mocha test/auth.test.js  --exit --timeout=10000"
   },
   "dependencies": {
     "@feathersjs/authentication": "^2.1.0",
