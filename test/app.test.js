@@ -6,6 +6,8 @@ const feathersClient = require('@feathersjs/client');
 const socketio = require('socket.io-client');
 const chai = require('chai');
 const { expect } = chai;
+const chaiAsPromised = require("chai-as-promised");
+chai.use(chaiAsPromised);
 
 const port = app.get('port') || 3030;
 const getUrl = pathname => url.format({
@@ -94,6 +96,13 @@ describe('Feathers application tests', () => {
           await this.userService.remove(this.userId)
         }
       });
+
+      it('should reject unauthorized access', () => {
+        return Promise.all([
+          expect(this.userService.find({})).to.be.rejectedWith('No auth token'),
+          expect(this.userService.get(this.userId)).to.be.rejectedWith('You are not authenticated'),
+        ])
+      })
 
       it('should login correctly', (done) => {
         // const suite = this;
