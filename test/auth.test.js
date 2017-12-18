@@ -146,7 +146,7 @@ describe('Feathers authorization', () => {
           let remaining = exp - now;
           if (remaining < 0) {
             // already expired
-            remaining = 0;
+            throw new Error('Previous tests might fail due to access token expired too soon. Increase jwt expiresIn.')
           }
 
           console.log('waiting for expiration', remaining / 1000, 's')
