@@ -108,16 +108,16 @@ describe('Feathers authorization', () => {
           }
         });
 
-        it('should reject unauthorized access', () => {
+        it('1. should reject unauthorized access', () => {
           return Promise.all([
             expect(this.userService.find({})).to.be.rejectedWith('No auth token'),
             expect(this.userService.get(this.userId)).to.be.rejectedWith('You are not authenticated'),
           ])
         })
 
-        it('should login correctly', transport.loginRoutine.bind(this))
+        it('2. should login correctly', transport.loginRoutine.bind(this))
 
-        it('should find all users (authenticate:jwt)', async () => {
+        it('3. should find all users (authenticate:jwt)', async () => {
           const users = await this.userService.find({});
 
           expect(users).to.be.an('object').that.has.all.keys(['total', 'limit', 'skip', 'data'])
@@ -127,13 +127,13 @@ describe('Feathers authorization', () => {
           expect(users.data[0]).to.eql(this.expectedUserObject)
         })
 
-        it('should get one user (restrictToAuthenticated)', async () => {
+        it('4. should get one user (restrictToAuthenticated)', async () => {
           const user = await this.userService.get(this.userId);
 
           expect(user).to.deep.equal(this.expectedUserObject)
         })
 
-        it('authtoken should be expired now', (done) => {
+        it('5. authtoken should be expired now', (done) => {
           const decoded = jwtDecode(this.accessToken)
 
           expect(decoded).be.an('object')
@@ -157,11 +157,11 @@ describe('Feathers authorization', () => {
           }, remaining + 200)
         })
 
-        it('should reject to find users (authenticate:jwt)', () => {
+        it('6. should reject to find users (authenticate:jwt)', () => {
           return expect(this.userService.find({})).to.be.rejectedWith('jwt expired')
         })
 
-        it('should reject to get user (restrictToAuthenticated)', () => {
+        it('7. should reject to get user (restrictToAuthenticated)', () => {
           return expect(this.userService.get(this.userId)).to.be.rejectedWith('You are not authenticated')
         })
       })
