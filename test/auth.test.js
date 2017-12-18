@@ -133,6 +133,39 @@ describe('Feathers authorization', () => {
           expect(user).to.deep.equal(this.expectedUserObject)
         })
 
+        it('should reject polluted/malformed access token', async () => {
+          const parts = this.accessToken.split('.')
+
+          expect(parts).to.be.an('array').lengthOf(3)
+          const payload = new Buffer(parts[1], 'base64').toString('ascii')
+          const obj = JSON.parse(payload)
+
+          expect(obj).to.be.an('object').and.have.property('exp')
+
+          obj.exp += 60;
+
+          parts[1] = new Buffer(JSON.stringify(obj)).toString('base64')
+
+          const malformedAccessToken = parts.join('.')
+
+          const res = await fetch(getUrl('users'), {
+            headers: {
+              'Accept': 'application/json',
+              'Content-Type': 'application/json',
+              'Authorization': malformedAccessToken,
+            }
+          })
+
+          expect(res).to.be.an('object')
+          expect(res).to.have.property('status', 401)
+          expect(res).to.have.property('statusText', 'Unauthorized')
+
+          const body = await res.json();
+
+          expect(body).to.have.property('message', 'invalid signature')
+          expect(body).to.have.property('code', 401)
+        })
+
         it('5. authtoken should be expired now', (done) => {
           const decoded = jwtDecode(this.accessToken)
 
