@@ -13,7 +13,7 @@ Server is configured to have 2 protected endpoints in users service:
 1. FIND: `users:find` protected by `@feathersjs/authentication.hooks.authenticate('jwt')`
 2. GET: `users:get` protected by `feathers-authentication-hooks.restrictToAuthenticated()` 
 
-and test spec for testing feathers REST and socket.io authorization
+and specs to run against two transports (REST and socket.io) to test authorization:
 
 `test/auth.test.js`:
 1. should reject unauthorized access
@@ -31,45 +31,47 @@ and test spec for testing feathers REST and socket.io authorization
 7. should reject to get user (restrictToAuthenticated)  
     - Requested GET endpoint should be rejected after `authToken` expiration
 
-## Testing
+## How to run
 
 Run npm scipt: `npm run mocha:auth`
 
 ## Test results
 
-### All test spec pass except the following:
+Response messages are either misleading or not consistent in comparison to other transports. Therefore it breaks transport agnosticism rule.  
 
+### Socket.io failed tests:
+
+#### 6. should reject to find users (authenticate:jwt)
 ```
-1) Feathers authorization
-       Transports
-         Socket.io tests
-           should reject to find users (authenticate:jwt):
-
-      AssertionError: expected promise to be rejected with an error including 'jwt expired' but got 'No auth token'
-      + expected - actual
-
-      -No auth token
-      +jwt expired
+    Socket.io tests
+        6. should reject to find users (authenticate:jwt):
+            AssertionError: expected promise to be rejected with an error including 'jwt expired' but it was fulfilled with { Object (total, limit, ...) }
 ```
+
+I expect that after the token expires, I should get `jwt expired` error message, but `authenticate('jwt')` method is fulfilling the request regardless of token expiration time. REST transport passes that test responding with `jwt expired`.
+
   
+#### 7. should reject to get user (restrictToAuthenticated)
 ```
-  2) Feathers authorization
-       Transports
-         Socket.io tests
-           should reject to get user (restrictToAuthenticated):
-     AssertionError: expected promise to be rejected with an error including 'You are not authenticated' but it was fulfilled with { Object (email, _id) }
+    Socket.io tests
+        7. should reject to get user (restrictToAuthenticated):
+            AssertionError: expected promise to be rejected with an error including 'You are not authenticated' but it was fulfilled with { Object (email, _id) }
 ```
 
+I expect that after the token expires, I should get `jwt expired` error message, but `restrictToAuthenticated()` method is fulfilling the request regardless of token expiration time. REST transport passes that test responding with `jwt expired`. 
 
+### REST failed tests:
+
+#### 4. should get one user (restrictToAuthenticated)
 ```
-  3) Feathers authorization
-       Transports
-         REST tests
-           should get one user (restrictToAuthenticated):
-     NotAuthenticated: You are not authenticated.
-      at new NotAuthenticated (node_modules\@feathersjs\client\dist\feathers.js:508:17)
-      at convert (node_modules\@feathersjs\client\dist\feathers.js:653:32)
-      at toError (node_modules\@feathersjs\client\dist\feathers.js:94:9)
-      at <anonymous>
-      at process._tickCallback (internal/process/next_tick.js:188:7)
+   REST tests
+        4. should get one user (restrictToAuthenticated):
+            NotAuthenticated: You are not authenticated.
+             at new NotAuthenticated (node_modules\@feathersjs\client\dist\feathers.js:508:17)
+             at convert (node_modules\@feathersjs\client\dist\feathers.js:653:32)
+             at toError (node_modules\@feathersjs\client\dist\feathers.js:94:9)
+             at <anonymous>
+             at process._tickCallback (internal/process/next_tick.js:188:7)
 ```
+
+I expect that when passing valid access token, `restrictToAuthenticated()` method should parse token from request like `authenticate('jwt')` does, but it looks like it doesn't. Socket.io transport passes that test and fulfill the request. What's the purpose of having either `authenticate('jwt')` and `restrictToAuthenticated()` methods that produce different behavior and make authorization less predictable?  
